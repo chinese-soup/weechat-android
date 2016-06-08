@@ -31,6 +31,15 @@
         </com.ubergeek42.WeechatAndroid.utils.ActionEditText>
 
         <ImageButton
+            style="@android:style/Widget.TextView"
+            android:id="@+id/chatview_uploadimg"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@drawable/ic_4_collections_cloud"
+            android:contentDescription="@string/tabkey"
+            android:layout_margin="0dp" />
+
+        <ImageButton
             android:id="@+id/chatview_tab"
             android:layout_width="wrap_content"
             android:layout_height="?actionBarSize"

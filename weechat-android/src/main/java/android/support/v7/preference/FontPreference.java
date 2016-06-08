@@ -55,7 +55,7 @@ public class FontPreference extends DialogPreference {
         private LayoutInflater inflater;
 
         public static FontPreferenceFragment newInstance(String key) {
-            FontPreferenceFragment fragment = new FontPreferenceFragment();
+            FontPreferenceFragment fragment = new FontPreferenceFragment();;
             Bundle b = new Bundle(1);
             b.putString("key", key);
             fragment.setArguments(b);

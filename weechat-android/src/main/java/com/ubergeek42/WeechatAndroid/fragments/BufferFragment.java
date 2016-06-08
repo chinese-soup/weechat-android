@@ -60,6 +60,7 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
     private EditText uiInput;
     private ImageButton uiSend;
     private ImageButton uiTab;
+    private ImageButton uiUploadImg;
 
     private ViewGroup uiMore;
     private Button uiMoreButton;
@@ -105,11 +106,17 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
 
         uiLines = (ListView) v.findViewById(R.id.chatview_lines);
         uiInput = (EditText) v.findViewById(R.id.chatview_input);
+
+        uiUploadImg = (ImageButton) v.findViewById(R.id.chatview_uploadimg);
+
         uiSend = (ImageButton) v.findViewById(R.id.chatview_send);
         uiTab = (ImageButton) v.findViewById(R.id.chatview_tab);
 
+        uiUploadImg.setOnClickListener(this);
+
         uiSend.setOnClickListener(this);
         uiTab.setOnClickListener(this);
+
         uiInput.setOnKeyListener(this);            // listen for hardware keyboard
         uiInput.addTextChangedListener(this);      // listen for software keyboard through watching input box text
         uiInput.setOnEditorActionListener(this);   // listen for software keyboard's “send” click. see onEditorAction()
@@ -460,8 +467,19 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
         switch (v.getId()) {
             case R.id.chatview_send: sendMessage(); break;
             case R.id.chatview_tab: tryTabComplete(); break;
+            case R.id.chatview_uploadimg: tryUploadImg(); break;
             case R.id.button_more: requestMoreLines(); break;
         }
+    }
+
+    @SuppressLint("SetTextI18n") private void tryUploadImg() {
+        if (DEBUG_TAB_COMPLETE) logger.debug("tryUploadImg()");
+        if (buffer == null) return;
+
+        String txt = uiInput.getText().toString();
+
+        uiInput.setText(txt + " AHOJ");
+        uiInput.setSelection(uiInput.getText().length());
     }
 
     /** the only OnEditorActionListener's method
