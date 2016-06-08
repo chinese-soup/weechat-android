@@ -73,6 +73,9 @@ import de.greenrobot.event.EventBus;
 public class BufferFragment extends Fragment implements BufferEye, OnKeyListener,
         OnClickListener, TextWatcher, TextView.OnEditorActionListener {
 
+
+    public AlertDialog alertDialog;
+
     final private static boolean DEBUG_TAB_COMPLETE = false;
     final private static boolean DEBUG_LIFECYCLE = true;
     final private static boolean DEBUG_VISIBILITY = false;
@@ -533,6 +536,11 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
                             Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
                             uploading upl = new uploading();
                             upl.execute("PDiTaLP", bitmap);
+                            AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
+                            alertDialogBuilder.setTitle("Imgur upload...");
+                            alertDialogBuilder.setMessage("Uploading your image...").setCancelable(false);
+                            alertDialog = alertDialogBuilder.create();
+                            alertDialog.show();
 
                         }
                         catch(IOException e)
@@ -548,14 +556,9 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
 public class uploading extends AsyncTask<Object, Void, String>
 {
 
-    AlertDialog alertDialog;
     protected String doInBackground(Object... params)
     {
-        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
-        alertDialogBuilder.setTitle("Imgur upload...");
-        alertDialogBuilder.setMessage("Uploading your image...").setCancelable(false);
-        alertDialog = alertDialogBuilder.create();
-        alertDialog.show();
+
 
         String name = (String)params[0];
         Bitmap bitmap = (Bitmap)params[1];
@@ -628,6 +631,7 @@ public class uploading extends AsyncTask<Object, Void, String>
 
                 uiInput.setText(uiInput.getText() + " " + url);
                 uiInput.setSelection(uiInput.getText().length());
+                alertDialog.hide();
             }
             else
             {
