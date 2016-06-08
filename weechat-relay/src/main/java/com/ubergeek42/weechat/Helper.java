@@ -19,7 +19,7 @@ package com.ubergeek42.weechat;
  * Provides some helper functions that are required by the library
  * 
  * @author ubergeek42<kj@ubergeek42.com>
- * 
+ *
  */
 public class Helper {
     // Basically Arrays.copyOfRange, included as android 2.1 is missing this
@@ -33,4 +33,7 @@ public class Helper {
         System.arraycopy(original, from, copy, 0, Math.min(original.length - from, newLength));
         return copy;
     }
+
+
+
 }

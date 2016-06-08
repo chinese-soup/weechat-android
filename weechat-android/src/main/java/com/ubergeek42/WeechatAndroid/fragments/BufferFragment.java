@@ -1,10 +1,25 @@
 package com.ubergeek42.WeechatAndroid.fragments;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.Vector;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
+import android.app.Service;
+import android.content.Intent;
+import android.content.pm.ServiceInfo;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.AsyncTask;
+import android.provider.MediaStore;
 import android.support.annotation.NonNull;
 import android.support.v4.app.Fragment;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +27,8 @@ import android.content.Context;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
+import android.util.Base64;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -41,7 +58,17 @@ import com.ubergeek42.weechat.ColorScheme;
 import static com.ubergeek42.WeechatAndroid.service.Events.*;
 import static com.ubergeek42.WeechatAndroid.service.RelayService.STATE.*;
 
+import cz.msebera.android.httpclient.HttpEntity;
+import cz.msebera.android.httpclient.HttpResponse;
+import cz.msebera.android.httpclient.client.HttpClient;
+import cz.msebera.android.httpclient.client.methods.HttpPost;
+import cz.msebera.android.httpclient.entity.ContentType;
+import cz.msebera.android.httpclient.entity.mime.MultipartEntityBuilder;
+import cz.msebera.android.httpclient.impl.client.CloseableHttpClient;
+import cz.msebera.android.httpclient.impl.client.HttpClients;
+import cz.msebera.android.httpclient.util.EntityUtils;
 import de.greenrobot.event.EventBus;
+
 
 public class BufferFragment extends Fragment implements BufferEye, OnKeyListener,
         OnClickListener, TextWatcher, TextView.OnEditorActionListener {
@@ -473,14 +500,154 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
     }
 
     @SuppressLint("SetTextI18n") private void tryUploadImg() {
-        if (DEBUG_TAB_COMPLETE) logger.debug("tryUploadImg()");
         if (buffer == null) return;
+        logger.debug("tryUploadImg()");
 
-        String txt = uiInput.getText().toString();
+        Intent photoPickerIntent = new Intent(Intent.ACTION_PICK);
+        photoPickerIntent.setType("image/*");
+        int REQUEST_CODE_LOAD_IMAGE = 1;
 
-        uiInput.setText(txt + " AHOJ");
+        startActivityForResult(photoPickerIntent, REQUEST_CODE_LOAD_IMAGE);
+
         uiInput.setSelection(uiInput.getText().length());
     }
+
+    public void onActivityResult(int requestCode, int resultCode, Intent imageReturnedIntent) {
+        super.onActivityResult(requestCode, resultCode, imageReturnedIntent);
+
+        if(imageReturnedIntent == null)
+        {
+
+        }
+        else
+        {
+            Log.v("error", "INTENT = " + imageReturnedIntent.toString());
+            switch(requestCode) {
+                case 1:
+                    if(imageReturnedIntent.getData() != null)
+                    {
+                        try
+                        {
+                            final Uri imageUri = imageReturnedIntent.getData();
+
+                            Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
+                            uploading upl = new uploading();
+                            upl.execute("PDiTaLP", bitmap);
+
+                        }
+                        catch(IOException e)
+                        {
+                            e.printStackTrace();
+                        }
+                    }
+
+
+            }
+        }
+    }
+public class uploading extends AsyncTask<Object, Void, String>
+{
+
+    AlertDialog alertDialog;
+    protected String doInBackground(Object... params)
+    {
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
+        alertDialogBuilder.setTitle("Imgur upload...");
+        alertDialogBuilder.setMessage("Uploading your image...").setCancelable(false);
+        alertDialog = alertDialogBuilder.create();
+        alertDialog.show();
+
+        String name = (String)params[0];
+        Bitmap bitmap = (Bitmap)params[1];
+
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream);
+        String encoded_file = Base64.encodeToString( byteArrayOutputStream.toByteArray(), Base64.DEFAULT);
+
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+
+        HttpEntity entity = MultipartEntityBuilder
+                .create()
+                .addTextBody("image", encoded_file)
+                .addTextBody("type", "base64")
+                .build();
+
+        HttpPost httpPost = new HttpPost("https://api.imgur.com/3/upload");
+        httpPost.addHeader("Authorization", "Client-ID a416e89635996b4");
+        httpPost.setEntity(entity);
+        HttpResponse response = null;
+
+        try
+        {
+            response = httpClient.execute(httpPost);
+            HttpEntity result = response.getEntity();
+
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            result.writeTo(bytes);
+            String content = bytes.toString();
+            Log.e("MultiPartEntityRequest:",content);
+
+            return entity != null ? content : null;
+
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            return null;
+        }
+        finally
+        {
+            try
+            {
+                httpClient.close();
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+            }
+        }
+
+    }
+    protected void onPostExecute(String jsonRESULT)
+    {
+        Log.v("error", jsonRESULT);
+        JSONObject jsonParsed = null;
+        try
+        {
+            jsonParsed = new JSONObject(jsonRESULT);
+            boolean success = jsonParsed.getBoolean("success");
+            JSONObject jsonParsedData = jsonParsed.getJSONObject("data");
+
+            alertDialog.dismiss();
+
+            if(success == true)
+            {
+                String url = null;
+
+                url = jsonParsedData.getString("link");
+
+                uiInput.setText(uiInput.getText() + " " + url);
+                uiInput.setSelection(uiInput.getText().length());
+            }
+            else
+            {
+
+            }
+        }
+        catch (JSONException e)
+        {
+            e.printStackTrace();
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        finally
+        {
+            alertDialog.dismiss();
+        }
+    }
+}
 
     /** the only OnEditorActionListener's method
      ** listens to keyboard's “send” press (NOT our button) */
