@@ -74,7 +74,7 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
         OnClickListener, TextWatcher, TextView.OnEditorActionListener {
 
 
-    public AlertDialog alertDialog;
+
 
     final private static boolean DEBUG_TAB_COMPLETE = false;
     final private static boolean DEBUG_LIFECYCLE = true;
@@ -91,6 +91,8 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
     private ImageButton uiSend;
     private ImageButton uiTab;
     private ImageButton uiUploadImg;
+
+    private AlertDialog alertDialog;
 
     private ViewGroup uiMore;
     private Button uiMoreButton;
@@ -502,7 +504,8 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
         }
     }
 
-    @SuppressLint("SetTextI18n") private void tryUploadImg() {
+    @SuppressLint("SetTextI18n")
+    private void tryUploadImg() {
         if (buffer == null) return;
         logger.debug("tryUploadImg()");
 
@@ -534,14 +537,14 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
                             final Uri imageUri = imageReturnedIntent.getData();
 
                             Bitmap bitmap = MediaStore.Images.Media.getBitmap(getContext().getContentResolver(), imageUri);
-                            uploading upl = new uploading();
+                            ImgurUploadBgHelper upl = new ImgurUploadBgHelper();
                             upl.execute("PDiTaLP", bitmap);
+
                             AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
-                            alertDialogBuilder.setTitle("Imgur upload...");
+                            alertDialogBuilder.setTitle("Imgur upload");
                             alertDialogBuilder.setMessage("Uploading your image...").setCancelable(false);
                             alertDialog = alertDialogBuilder.create();
                             alertDialog.show();
-
                         }
                         catch(IOException e)
                         {
@@ -553,105 +556,111 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
             }
         }
     }
-public class uploading extends AsyncTask<Object, Void, String>
-{
 
-    protected String doInBackground(Object... params)
+    public class ImgurUploadBgHelper extends AsyncTask<Object, Void, String>
     {
-
-
-        String name = (String)params[0];
-        Bitmap bitmap = (Bitmap)params[1];
-
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream);
-        String encoded_file = Base64.encodeToString( byteArrayOutputStream.toByteArray(), Base64.DEFAULT);
-
-        CloseableHttpClient httpClient = HttpClients.createDefault();
-
-        HttpEntity entity = MultipartEntityBuilder
-                .create()
-                .addTextBody("image", encoded_file)
-                .addTextBody("type", "base64")
-                .build();
-
-        HttpPost httpPost = new HttpPost("https://api.imgur.com/3/upload");
-        httpPost.addHeader("Authorization", "Client-ID a416e89635996b4");
-        httpPost.setEntity(entity);
-        HttpResponse response = null;
-
-        try
+        protected String doInBackground(Object... params)
         {
-            response = httpClient.execute(httpPost);
-            HttpEntity result = response.getEntity();
+            String name = (String)params[0];
+            Bitmap bitmap = (Bitmap)params[1];
 
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            result.writeTo(bytes);
-            String content = bytes.toString();
-            Log.e("MultiPartEntityRequest:",content);
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 100, byteArrayOutputStream);
+            String encoded_file = Base64.encodeToString( byteArrayOutputStream.toByteArray(), Base64.DEFAULT);
 
-            return entity != null ? content : null;
+            CloseableHttpClient httpClient = HttpClients.createDefault();
 
-        }
-        catch (IOException e)
-        {
-            e.printStackTrace();
-            return null;
-        }
-        finally
-        {
+            HttpEntity entity = MultipartEntityBuilder
+                    .create()
+                    .addTextBody("image", encoded_file)
+                    .addTextBody("type", "base64")
+                    .build();
+
+            HttpPost httpPost = new HttpPost("https://api.imgur.com/3/upload");
+            httpPost.addHeader("Authorization", "Client-ID a416e89635996b4");
+            httpPost.setEntity(entity);
+            HttpResponse response = null;
+
             try
             {
-                httpClient.close();
+                response = httpClient.execute(httpPost);
+                HttpEntity result = response.getEntity();
+
+                ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+                result.writeTo(bytes);
+                String content = bytes.toString();
+                Log.e("MultiPartEntityRequest:",content);
+
+                return entity != null ? content : null;
+
             }
             catch (IOException e)
             {
                 e.printStackTrace();
+                return null;
             }
-        }
-
-    }
-    protected void onPostExecute(String jsonRESULT)
-    {
-        Log.v("error", jsonRESULT);
-        JSONObject jsonParsed = null;
-        try
-        {
-            jsonParsed = new JSONObject(jsonRESULT);
-            boolean success = jsonParsed.getBoolean("success");
-            JSONObject jsonParsedData = jsonParsed.getJSONObject("data");
-
-            alertDialog.dismiss();
-
-            if(success == true)
+            finally
             {
-                String url = null;
-
-                url = jsonParsedData.getString("link");
-
-                uiInput.setText(uiInput.getText() + " " + url);
-                uiInput.setSelection(uiInput.getText().length());
-                alertDialog.hide();
+                try
+                {
+                    httpClient.close();
+                }
+                catch (IOException e)
+                {
+                    e.printStackTrace();
+                }
             }
-            else
+
+        }
+        protected void onPostExecute(String jsonRESULT)
+        {
+            JSONObject jsonParsed = null;
+            try
             {
+                jsonParsed = new JSONObject(jsonRESULT);
+                boolean success = jsonParsed.getBoolean("success");
+                JSONObject jsonParsedData = jsonParsed.getJSONObject("data");
 
+                alertDialog.dismiss();
+
+                if(success == true)
+                {
+                    String url = null;
+
+                    url = jsonParsedData.getString("link");
+
+                    uiInput.setText(uiInput.getText() + " " + url);
+                    uiInput.setSelection(uiInput.getText().length());
+                    alertDialog.hide();
+                }
+                else
+                {
+                    alertDialog.hide();
+
+                    AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(getContext());
+                    alertDialogBuilder.setTitle("Imgur upload");
+                    alertDialogBuilder.setMessage("There was an error uploading your image.").setCancelable(true);
+                    AlertDialog errorDialog = alertDialogBuilder.create();
+                    errorDialog.show();
+
+                }
             }
-        }
-        catch (JSONException e)
-        {
-            e.printStackTrace();
-        }
-        catch (Exception e)
-        {
-            e.printStackTrace();
-        }
-        finally
-        {
-            alertDialog.dismiss();
+            catch (JSONException e)
+            {
+                e.getMessage();
+            }
+            catch (Exception e)
+            {
+                e.printStackTrace();
+            }
+            finally
+            {
+                alertDialog.dismiss();
+            }
         }
     }
-}
+
+
 
     /** the only OnEditorActionListener's method
      ** listens to keyboard's “send” press (NOT our button) */

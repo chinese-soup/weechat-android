@@ -37,7 +37,8 @@
             android:src="@drawable/ic_4_collections_cloud"
             android:contentDescription="@string/tabkey"
             android:layout_margin="0dp"
-            style="@style/ActionButton" />
+            style="@style/ActionButton"
+            android:layout_gravity="bottom"/>
 
         <ImageButton
             android:id="@+id/chatview_tab"
