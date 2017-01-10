@@ -251,8 +251,8 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
 
         // move the read marker in weechat (if preferences dictate)
         if (!watched && P.hotlistSync) {
-            EventBus.getDefault().post(new SendMessageEvent("input " + buffer.fullName + " /buffer set hotlist -1"));
-            EventBus.getDefault().post(new SendMessageEvent("input " + buffer.fullName + " /input set_unread_current_buffer"));
+            EventBus.getDefault().post(new SendMessageEvent(String.format("input %s /buffer set hotlist -1", buffer.hexPointer())));
+            EventBus.getDefault().post(new SendMessageEvent(String.format("input %s /input set_unread_current_buffer", buffer.hexPointer())));
         }
     }
 
@@ -351,7 +351,7 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
                     boolean more = s == LINES.CAN_FETCH_MORE;
                     uiMoreButton.setEnabled(more);
                     uiMoreButton.setTextColor(more ? 0xff80cbc4 : 0xff777777);
-                    uiMoreButton.setText(more ? "Fetch more lines" : "Fetching lines…");
+                    uiMoreButton.setText(getString(more ? R.string.more_button : R.string.more_button_fetching));
                 }
             }
         });
@@ -370,13 +370,17 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
 
     @Override
     public void onLinesChanged() {
-        linesAdapter.onLinesChanged();
+        if (linesAdapter != null) {
+            linesAdapter.onLinesChanged();
+        }
         maybeChangeHeader();
     }
 
     @Override
     public void onLinesListed() {
-        linesAdapter.onLinesChanged();
+        if (linesAdapter != null) {
+            linesAdapter.onLinesChanged();
+        }
         maybeChangeHeader();
         scrollToHotLineIfNeeded();
     }
@@ -683,7 +687,7 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
         String[] lines = input.split("\n");
         for (String line : lines) {
             if (line.length() != 0)
-                EventBus.getDefault().post(new SendMessageEvent("input " + fullName + " " + line));
+                EventBus.getDefault().post(new SendMessageEvent(String.format("input %s %s", buffer.hexPointer(), line)));
         }
         uiInput.setText("");   // this will reset tab completion
     }
@@ -752,7 +756,10 @@ public class BufferFragment extends Fragment implements BufferEye, OnKeyListener
     }
 
     public void setText(String text) {
-        uiInput.setText(text);
+        String oldText = uiInput.getText().toString();
+        if (oldText.length() > 0 && oldText.charAt(oldText.length() - 1) != ' ') oldText += ' ';
+        uiInput.setText(oldText + text);
+        uiInput.setSelection(uiInput.getText().length());
     }
 
     //////////////////////////////////////////////////////////////////////////////////////////////// text watcher

@@ -227,12 +227,12 @@ public class BufferList {
 
     /** send sync command to relay (if traffic is set to optimized) and
      ** add it to the synced buffers (=open buffers) list */
-    synchronized static void syncBuffer(String fullName) {
-        if (P.optimizeTraffic) sendMessage("sync " + fullName);
+    synchronized static void syncBuffer(Buffer buffer) {
+        if (P.optimizeTraffic) sendMessage(String.format("sync %s", buffer.hexPointer()));
     }
 
-    synchronized static void desyncBuffer(String fullName) {
-        if (P.optimizeTraffic) sendMessage("desync " + fullName);
+    synchronized static void desyncBuffer(Buffer buffer) {
+        if (P.optimizeTraffic) sendMessage(String.format("desync %s", buffer.hexPointer()));
     }
 
     private static int counter = 0;
@@ -572,10 +572,11 @@ public class BufferList {
                         long pointer = entry.getPointerLong();
                         String prefix = entry.getItem("prefix").asString();
                         String name = entry.getItem("name").asString();
+                        boolean away = entry.getItem("color").asString().contains("weechat.color.nicklist_away");
                         if (command == ADD)
-                            buffer.addNick(pointer, prefix, name);
+                            buffer.addNick(pointer, prefix, name, away);
                         else
-                            buffer.updateNick(pointer, prefix, name);
+                            buffer.updateNick(pointer, prefix, name, away);
                     }
                 } else if (command == REMOVE) {
                     buffer.removeNick(entry.getPointerLong());

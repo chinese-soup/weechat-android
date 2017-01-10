@@ -20,6 +20,7 @@ import java.security.cert.CertPathValidatorException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.EnumSet;
+import java.util.Set;
 
 import javax.net.ssl.SSLException;
 
@@ -62,7 +63,8 @@ import com.ubergeek42.WeechatAndroid.relay.BufferList;
 import com.ubergeek42.WeechatAndroid.relay.Nick;
 import com.ubergeek42.WeechatAndroid.service.P;
 import com.ubergeek42.WeechatAndroid.service.RelayService;
-import com.ubergeek42.WeechatAndroid.utils.ActionEditText;
+import com.ubergeek42.WeechatAndroid.service.SSLHandler;
+import com.ubergeek42.WeechatAndroid.utils.InvalidHostnameDialog;
 import com.ubergeek42.WeechatAndroid.utils.MyMenuItemStuffListener;
 import com.ubergeek42.WeechatAndroid.utils.ToolbarController;
 import com.ubergeek42.WeechatAndroid.utils.UntrustedCertificateDialog;
@@ -299,14 +301,27 @@ public class WeechatActivity extends AppCompatActivity implements
                     CertPath cp = e3.getCertPath();
 
                     final X509Certificate certificate = (X509Certificate) cp.getCertificates().get(0);
-                    DialogFragment f = UntrustedCertificateDialog.newInstance(certificate);
-                    f.show(getSupportFragmentManager(), "boo");
+
+                    DialogFragment f;
+                    if (SSLHandler.checkHostname(P.host, P.port)) {
+                        // valid hostname, untrusted certificate
+                        f = UntrustedCertificateDialog.newInstance(certificate);
+                    } else {
+                        // invalid hostname, abort early
+                        final Set<String> hosts = SSLHandler.getCertificateHosts(certificate);
+                        // remove the host itself, in case the host is an IP defined in the
+                        // certificate 'Common Name' (Android does not accept that)
+                        hosts.remove(P.host);
+                        f = InvalidHostnameDialog.newInstance(P.host, hosts);
+                    }
+
+                    f.show(getSupportFragmentManager(), "ssl-error");
                     disconnect();
                     return;
                 }
             }
         }
-        final String msg = "Error: " + (TextUtils.isEmpty(e.getMessage()) ? e.getClass().getSimpleName() : e.getMessage());
+        final String msg = getString(R.string.error, TextUtils.isEmpty(e.getMessage()) ? e.getClass().getSimpleName() : e.getMessage());
         runOnUiThread(new Runnable() {
             @Override public void run() {
                 Toast.makeText(getBaseContext(), msg, Toast.LENGTH_LONG).show();
@@ -380,7 +395,7 @@ public class WeechatActivity extends AppCompatActivity implements
         final View menuHotlist = MenuItemCompat.getActionView(menu.findItem(R.id.menu_hotlist));
         uiHot = (TextView) menuHotlist.findViewById(R.id.hotlist_hot);
         updateHotCount(hotNumber);
-        new MyMenuItemStuffListener(menuHotlist, "Show hot message") {
+        new MyMenuItemStuffListener(menuHotlist, getString(R.string.hint_show_hot_message)) {
             @Override
             public void onClick(View v) {
                 onHotlistSelected();
@@ -433,7 +448,7 @@ public class WeechatActivity extends AppCompatActivity implements
                     @Override
                     public void onClick(DialogInterface dialogInterface, int position) {
                         Nick nick = nicklistAdapter.getItem(position);
-                        EventBus.getDefault().post(new SendMessageEvent("input " + buffer.fullName + " /query " + nick.name));
+                        EventBus.getDefault().post(new SendMessageEvent(String.format("input %s /query %s", buffer.hexPointer(), nick.name)));
                     }
                 });
                 AlertDialog dialog = builder.create();
@@ -465,9 +480,9 @@ public class WeechatActivity extends AppCompatActivity implements
                     MenuItem connectionStatus = uiMenu.findItem(R.id.menu_connection_state);
                     String msg;
 
-                    if (state.contains(AUTHENTICATED)) msg = "Disconnect";
-                    else if (state.contains(STARTED)) msg = "Stop connecting";
-                    else msg = "Connect";
+                    if (state.contains(AUTHENTICATED)) msg = getString(R.string.disconnect);
+                    else if (state.contains(STARTED)) msg = getString(R.string.stop_connecting);
+                    else msg = getString(R.string.connect);
                     connectionStatus.setTitle(msg);
 
                     final View menuHotlist = MenuItemCompat.getActionView(uiMenu.findItem(R.id.menu_hotlist));
@@ -504,7 +519,7 @@ public class WeechatActivity extends AppCompatActivity implements
 
             if (slidy) hideDrawer();
         } else {
-            Toast.makeText(this, "Not connected", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.not_connected), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -611,7 +626,7 @@ public class WeechatActivity extends AppCompatActivity implements
     //////////////////////////////////////////////////////////////////////////////////////////////// intent
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
-    private final String EXTRA_NAME = "full_name";
+    public final static String EXTRA_NAME = "full_name";
 
     /** we may get intent while we are connected to the service and when we are not.
      ** empty (but present) fullName means open the drawer (in case we have highlights

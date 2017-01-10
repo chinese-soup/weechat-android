@@ -14,6 +14,9 @@ public class Constants {
     // ssl group
     final static public String PREF_SSL_GROUP = "ssl_group";
 
+    // websocket
+    final static public String PREF_WS_PATH = "ws_path"; final public static String PREF_WS_PATH_D = "weechat";
+
     // ssh group & insides
     final static public String PREF_SSH_GROUP = "ssh_group";
     final static public String PREF_SSH_HOST = "ssh_host"; final public static String PREF_SSH_HOST_D = "";
@@ -50,6 +53,7 @@ public class Constants {
     // look & feel
     final static public String PREF_LOOKFEEL_GROUP = "lookfeel_group";
     public static final String PREF_TEXT_SIZE = "text_size"; final public static String PREF_TEXT_SIZE_D = "12";
+    public static final String PREF_AUTO_HIDE_ACTIONBAR = "auto_hide_actionbar"; public static final boolean PREF_AUTO_HIDE_ACTIONBAR_D = true;
     public static final String PREF_FILTER_LINES = "chatview_filters"; final public static boolean PREF_FILTER_LINES_D = true;
     public static final String PREF_PREFIX_ALIGN = "prefix_align"; final public static String PREF_PREFIX_ALIGN_D = "right";
     final static public String PREF_MAX_WIDTH = "prefix_max_width"; final public static String PREF_MAX_WIDTH_D = "7";

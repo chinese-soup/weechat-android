@@ -82,6 +82,17 @@ public class Notificator {
         if (P.notificationTicker)
             builder.setTicker(tickerText);
 
+        String disconnectText = context.getString(relay.state.contains(AUTHENTICATED) ? R.string.disconnect : R.string.stop_connecting);
+
+        builder.addAction(
+                android.R.drawable.ic_menu_close_clear_cancel, disconnectText,
+                PendingIntent.getService(
+                    context, 0,
+                    new Intent(RelayService.ACTION_STOP, null, context, RelayService.class),
+                    0
+                )
+        );
+
         Notification notification = builder.build();
         notification.flags |= Notification.FLAG_ONGOING_EVENT;
 
@@ -138,7 +149,7 @@ public class Notificator {
         // one ore more visible lines and "..."
         if (hotList.size() > 0 && hotCount > 1) {
             NotificationCompat.InboxStyle inbox = new NotificationCompat.InboxStyle()
-                    .setSummaryText(P.host);
+                    .setSummaryText(P.printableHost);
 
             for (String[] bufferToLine : hotList) inbox.addLine(bufferToLine[LINE]);
             if (hotList.size() < hotCount) inbox.addLine("…");

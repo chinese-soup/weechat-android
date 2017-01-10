@@ -6,6 +6,7 @@
 package com.ubergeek42.WeechatAndroid.service;
 
 import android.content.Context;
+import android.net.SSLCertificateSocketFactory;
 import android.support.annotation.CheckResult;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -24,15 +25,29 @@ import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.cert.CertificateException;
+import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.SSLSocket;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 
 public class SSLHandler {
     private static Logger logger = LoggerFactory.getLogger("SSLHandler");
     private static final String KEYSTORE_PASSWORD = "weechat-android";
+    // best-effort RDN regex, matches CN="foo,bar",OU=... and CN=foobar,OU=...
+    private static final Pattern RDN_PATTERN = Pattern.compile("CN\\s*=\\s*((?:\"[^\"]*\")|(?:[^\",]*))");
 
     private File keystoreFile;
     private KeyStore sslKeystore;
@@ -52,7 +67,54 @@ public class SSLHandler {
         return sslHandler;
     }
 
+    /**
+     * Initiate an SSL handshake on given host, port to check the hostname using
+     * {@link HttpsURLConnection} default hostname verifier.
+     * @return {@code true} if hostname could be verified
+     */
+    public static boolean checkHostname(@NonNull String host, int port) {
+        // as the check is done *before* checking the certificate, an insecure factory is needed
+        final SSLSocketFactory factory = SSLCertificateSocketFactory.getInsecure(0, null);
+        final SSLSocket ssl;
+        try {
+            ssl = (SSLSocket) factory.createSocket(host, port);
+            ssl.startHandshake();
+        } catch (IOException e) {
+            return false;
+        }
+        SSLSession session = ssl.getSession();
+        boolean result = HttpsURLConnection.getDefaultHostnameVerifier().verify(host, session);
+        try { ssl.close(); } catch (IOException ignored) {}
+        return result;
+    }
+
+    public static Set<String> getCertificateHosts(X509Certificate certificate) {
+        final Set<String> hosts = new HashSet<>();
+        try {
+            final Matcher matcher = RDN_PATTERN.matcher(certificate.getSubjectDN().getName());
+            if (matcher.find())
+                hosts.add(matcher.group(1));
+        } catch (NullPointerException ignored) {}
+        try {
+            for (List<?> pair : certificate.getSubjectAlternativeNames()) {
+                try {
+                    hosts.add(pair.get(1).toString());
+                } catch (IndexOutOfBoundsException ignored) {}
+            }
+        } catch(NullPointerException | CertificateParsingException ignored) {}
+        return hosts;
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    public int getUserCertificateCount() {
+        try {
+            return sslKeystore.size();
+        } catch (KeyStoreException e) {
+            logger.error("getUserCertificateCount()", e);
+            return 0;
+        }
+    }
 
     public void trustCertificate(@NonNull X509Certificate cert) {
         try {
@@ -64,17 +126,10 @@ public class SSLHandler {
         saveKeystore();
     }
 
-    public @Nullable SSLContext getSSLContext() {
-        try {
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(sslKeystore);
-            SSLContext sslContext = SSLContext.getInstance("TLS");
-            sslContext.init(null, tmf.getTrustManagers(), new SecureRandom());
-            return sslContext;
-        } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException e) {
-            logger.error("getSSLContext()", e);
-            return null;
-        }
+    public SSLSocketFactory getSSLSocketFactory() {
+        SSLCertificateSocketFactory sslSocketFactory = (SSLCertificateSocketFactory) SSLCertificateSocketFactory.getDefault(0, null);
+        sslSocketFactory.setTrustManagers(UserTrustManager.build(sslKeystore));
+        return sslSocketFactory;
     }
 
     @CheckResult public boolean removeKeystore() {
@@ -101,14 +156,6 @@ public class SSLHandler {
     private void createKeystore() {
         try {
             sslKeystore.load(null, null);
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init((KeyStore) null);
-            // Copy current certs into our keystore so we can use it...
-            // TODO: don't actually do this...
-            X509TrustManager xtm = (X509TrustManager) tmf.getTrustManagers()[0];
-            for (X509Certificate cert : xtm.getAcceptedIssuers()) {
-                sslKeystore.setCertificateEntry(cert.getSubjectDN().getName(), cert);
-            }
         } catch (Exception e) {
             logger.error("createKeystore()", e);
         }
@@ -120,6 +167,65 @@ public class SSLHandler {
             sslKeystore.store(new FileOutputStream(keystoreFile), KEYSTORE_PASSWORD.toCharArray());
         } catch (KeyStoreException | NoSuchAlgorithmException | CertificateException | IOException e) {
             logger.error("saveKeystore()", e);
+        }
+    }
+
+    private static class UserTrustManager implements X509TrustManager {
+        static final X509TrustManager systemTrustManager = buildTrustManger(null);
+        private final X509TrustManager userTrustManager;
+
+        private static TrustManager[] build(KeyStore sslKeystore) {
+            return new TrustManager[] { new UserTrustManager(sslKeystore) };
+        }
+
+        static X509TrustManager buildTrustManger(@Nullable KeyStore store) {
+            try {
+                TrustManagerFactory tmf =
+                    TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(store);
+                return (X509TrustManager) tmf.getTrustManagers()[0];
+            } catch (NoSuchAlgorithmException | KeyStoreException e) {
+                return null;
+            }
+        }
+
+        private UserTrustManager(KeyStore userKeyStore) {
+            this.userTrustManager = buildTrustManger(userKeyStore);
+        }
+
+        @Override
+        public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
+            throws CertificateException {
+            try {
+                systemTrustManager.checkClientTrusted(x509Certificates, s);
+                logger.debug("Client is trusted by system");
+            } catch (CertificateException e) {
+                logger.debug("Client is NOT trusted by system, trying user");
+                userTrustManager.checkClientTrusted(x509Certificates, s);
+                logger.debug("Client is trusted by user");
+            }
+        }
+
+        @Override
+        public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
+            throws CertificateException {
+            try {
+                systemTrustManager.checkServerTrusted(x509Certificates, s);
+                logger.debug("Server is trusted by system");
+            } catch (CertificateException e) {
+                logger.debug("Server is NOT trusted by system, trying user");
+                userTrustManager.checkServerTrusted(x509Certificates, s);
+                logger.debug("Server is trusted by user");
+            }
+        }
+
+        @Override
+        public X509Certificate[] getAcceptedIssuers() {
+            X509Certificate[] system = systemTrustManager.getAcceptedIssuers();
+            X509Certificate[] user = userTrustManager.getAcceptedIssuers();
+            X509Certificate[] result = Arrays.copyOf(system, system.length + user.length);
+            System.arraycopy(user, 0, result, system.length, user.length);
+            return result;
         }
     }
 }

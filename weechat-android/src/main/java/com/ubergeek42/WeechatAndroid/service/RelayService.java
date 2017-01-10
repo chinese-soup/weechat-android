@@ -80,6 +80,7 @@ public class RelayService extends Service implements Connection.Observer {
     @Override
     public void onDestroy() {
         if (DEBUG) logger.debug("onDestroy()");
+        P.saveStuff();
         connectivity.unregister();
         super.onDestroy();
         EventBus.getDefault().unregister(this);
@@ -153,7 +154,7 @@ public class RelayService extends Service implements Connection.Observer {
                 @Override public void run() {
                     if (state.contains(STATE.AUTHENTICATED)) return;
                     if (DEBUG_CONNECTION) logger.debug("start(): not connected; connecting now");
-                    Notificator.showMain(RelayService.this, String.format(ticker, P.host), contentNow, null);
+                    Notificator.showMain(RelayService.this, String.format(ticker, P.printableHost), contentNow, null);
                     switch (connect()) {
                         case LATER: return; // wait for Connectivity
                         case IMPOSSIBLE: stop(); break; // can't connect due to ?!?!
@@ -167,7 +168,7 @@ public class RelayService extends Service implements Connection.Observer {
                     if (state.contains(STATE.AUTHENTICATED)) return;
                     long delay = DELAYS[reconnects < DELAYS.length ? reconnects : DELAYS.length - 1];
                     if (DEBUG_CONNECTION) logger.debug("start(): waiting {} seconds", delay);
-                    Notificator.showMain(RelayService.this, String.format(ticker, P.host), String.format(content, delay), null);
+                    Notificator.showMain(RelayService.this, String.format(ticker, P.printableHost), String.format(content, delay), null);
                     reconnects++;
                     thandler.postDelayed(connectRunner, delay * 1000);
                 }
@@ -226,9 +227,9 @@ public class RelayService extends Service implements Connection.Observer {
         try {
             switch (P.connectionType) {
                 case PREF_TYPE_SSH: conn = new SSHConnection(P.host, P.port, P.sshHost, P.sshPort, P.sshUser, P.sshPass, P.sshKey, P.sshKnownHosts); break;
-                case PREF_TYPE_SSL: conn = new SSLConnection(P.host, P.port, P.sslContext); break;
-                case PREF_TYPE_WEBSOCKET: conn = new WebSocketConnection(P.host, P.port, null); break;
-                case PREF_TYPE_WEBSOCKET_SSL: conn = new WebSocketConnection(P.host, P.port, P.sslContext); break;
+                case PREF_TYPE_SSL: conn = new SSLConnection(P.host, P.port, P.sslSocketFactory); break;
+                case PREF_TYPE_WEBSOCKET: conn = new WebSocketConnection(P.host, P.port, P.wsPath, null); break;
+                case PREF_TYPE_WEBSOCKET_SSL: conn = new WebSocketConnection(P.host, P.port, P.wsPath, P.sslSocketFactory); break;
                 default: conn = new PlainConnection(P.host, P.port); break;
             }
         } catch (Exception e) {
@@ -264,7 +265,7 @@ public class RelayService extends Service implements Connection.Observer {
                 return;
             case AUTHENTICATED:
                 state = EnumSet.of(STATE.STARTED, STATE.AUTHENTICATED);
-                Notificator.showMain(this, getString(R.string.notification_connected_to) + P.host, null);
+                Notificator.showMain(this, getString(R.string.notification_connected_to, P.printableHost), null);
                 hello();
                 break;
             case BUFFERS_LISTED:
@@ -306,9 +307,9 @@ public class RelayService extends Service implements Connection.Observer {
     @Override public void onException(Exception e) {
         logger.error("onException({})", e.getClass().getSimpleName());
         if (e instanceof StreamClosed && (!state.contains(STATE.AUTHENTICATED)))
-            e = new ExceptionWrapper(e, "Server unexpectedly closed connection while connecting. Wrong password or connection type?");
+            e = new ExceptionWrapper(e, getString(R.string.relay_error_server_closed));
         else if (e instanceof UnresolvedAddressException)
-            e = new ExceptionWrapper(e, "Could not resolve address " + (P.connectionType.equals(PREF_TYPE_SSH) ? P.sshHost : P.host));
+            e = new ExceptionWrapper(e, getString(R.string.relay_error_resolve, P.connectionType.equals(PREF_TYPE_SSH) ? P.sshHost : P.host));
         EventBus.getDefault().post(new ExceptionEvent(e));
     }
 

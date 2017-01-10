@@ -1,5 +1,6 @@
 package com.ubergeek42.WeechatAndroid.adapters;
 
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.content.DialogInterface;
 import android.support.annotation.NonNull;
@@ -29,6 +30,7 @@ public class NickListAdapter extends BaseAdapter implements BufferNicklistEye,
     private final @NonNull LayoutInflater inflater;
     private final @NonNull Buffer buffer;
     private @NonNull Nick[] nicks = new Nick[0];
+    private int defaultNickTextColor = 0;
     private AlertDialog dialog;
 
     public NickListAdapter(@NonNull WeechatActivity activity, @NonNull Buffer buffer) {
@@ -57,15 +59,25 @@ public class NickListAdapter extends BaseAdapter implements BufferNicklistEye,
         if (convertView == null)
             convertView = inflater.inflate(R.layout.select_dialog_item_material_2_lines, parent, false);
 
+        final TextView textView = (TextView) convertView;
+        if (defaultNickTextColor == 0)
+            defaultNickTextColor = textView.getTextColors().getDefaultColor();
+
         Nick nick = getItem(position);
-        ((TextView) convertView).setText(nick.prefix + nick.name);
+        textView.setText(nick.prefix + nick.name);
+        int color = nick.away ? ContextCompat.getColor(convertView.getContext(), R.color.away_nick)
+                              : defaultNickTextColor;
+        textView.setTextColor(color);
         return convertView;
     }
 
     public void onNicklistChanged() {
         if (DEBUG) logger.debug("onNicklistChanged()");
         final Nick[] tmp = buffer.getNicksCopy();
-        final String title = String.format("%s (%s users)", buffer.shortName, tmp.length);
+        final String nicklistCount = activity.getResources().getQuantityString(
+                R.plurals.nick_list_count, tmp.length, tmp.length);
+        final String title = activity.getString(R.string.nick_list_title,
+                buffer.shortName, nicklistCount);
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {

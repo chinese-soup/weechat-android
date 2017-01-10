@@ -8,7 +8,6 @@ package com.ubergeek42.weechat.relay.connection;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
-import com.jcraft.jsch.SocketFactory;
 import com.jcraft.jsch.UIKeyboardInteractive;
 import com.jcraft.jsch.UserInfo;
 import com.ubergeek42.weechat.relay.JschLogger;
@@ -18,12 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.channels.ClosedByInterruptException;
-import java.nio.channels.SocketChannel;
 import java.util.regex.Pattern;
 
 public class SSHConnection extends AbstractConnection {
@@ -31,14 +26,11 @@ public class SSHConnection extends AbstractConnection {
     protected static Logger logger = LoggerFactory.getLogger("SSHConnection");
 
     private Session sshSession;
+    private Socket sock;
+
     private String sshPassword;
-
-    final static private int SSH_LOCAL_PORT = 22231;
-
     private String server;
     private int port;
-
-    private Socket sock;
 
     public SSHConnection(String server, int port, String sshHost, int sshPort, String sshUsername,
                          String sshPassword, byte[] sshKey, byte[] sshKnownHosts) throws JSchException {
@@ -65,8 +57,8 @@ public class SSHConnection extends AbstractConnection {
                     (ClosedByInterruptException) e.getCause() : e;
         }
 
-        sshSession.setPortForwardingL(SSH_LOCAL_PORT, server, port);
-        sock = new Socket("127.0.0.1", SSH_LOCAL_PORT);
+        int localPort = sshSession.setPortForwardingL(0, server, port);
+        sock = new Socket("127.0.0.1", localPort);
         out = sock.getOutputStream();
         in = sock.getInputStream();
     }
@@ -91,29 +83,6 @@ public class SSHConnection extends AbstractConnection {
         public String[] promptKeyboardInteractive(String destination, String name, String instruction, String[] prompt, boolean[] echo) {
             return (prompt.length == 1 && !echo[0] && PASSWORD_PROMPT.matcher(prompt[0]).find()) ?
                     new String[]{sshPassword} : null;
-        }
-    }
-
-    // JSch doesn't expose the cause of exceptions raised by createSocket.
-    // Throw a RuntimeException so we know if we were interrupted or if
-    // there was some other connection failure.
-    private static class SocketChannelFactory implements SocketFactory {
-        @Override public Socket createSocket(String host, int port) throws IOException {
-            try {
-                SocketChannel channel = SocketChannel.open();
-                channel.connect(new InetSocketAddress(host, port));
-                return channel.socket();
-            } catch (ClosedByInterruptException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        @Override public InputStream getInputStream(Socket socket) throws IOException {
-            return socket.getInputStream();
-        }
-
-        @Override public OutputStream getOutputStream(Socket socket) throws IOException {
-            return socket.getOutputStream();
         }
     }
 }

@@ -16,6 +16,7 @@ import android.support.v7.preference.FilePreference;
 import android.support.v7.preference.ThemeManager;
 import android.text.TextUtils;
 
+import com.ubergeek42.WeechatAndroid.R;
 import com.ubergeek42.WeechatAndroid.relay.Buffer;
 import com.ubergeek42.WeechatAndroid.relay.BufferList;
 import com.ubergeek42.WeechatAndroid.utils.Utils;
@@ -34,6 +35,7 @@ import java.util.LinkedList;
 import java.util.Locale;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 
 import static com.ubergeek42.WeechatAndroid.utils.Constants.*;
 
@@ -59,7 +61,7 @@ public class P implements SharedPreferences.OnSharedPreferenceChangeListener{
     ///////////////////////////////////////////////////////////////////////////////////////////// ui
 
     public static boolean sortBuffers, showTitle, filterBuffers, optimizeTraffic;
-    public static boolean filterLines;
+    public static boolean filterLines, autoHideActionbar;
     public static int maxWidth;
     public static boolean encloseNick, dimDownNonHumanLines;
     public static @Nullable DateFormat dateFormat;
@@ -83,6 +85,7 @@ public class P implements SharedPreferences.OnSharedPreferenceChangeListener{
 
         // buffer-wide preferences
         filterLines = p.getBoolean(PREF_FILTER_LINES, PREF_FILTER_LINES_D);
+        autoHideActionbar = p.getBoolean(PREF_AUTO_HIDE_ACTIONBAR, PREF_AUTO_HIDE_ACTIONBAR_D);
         maxWidth = Integer.parseInt(p.getString(PREF_MAX_WIDTH, PREF_MAX_WIDTH_D));
         encloseNick = p.getBoolean(PREF_ENCLOSE_NICK, PREF_ENCLOSE_NICK_D);
         dimDownNonHumanLines = p.getBoolean(PREF_DIM_DOWN, PREF_DIM_DOWN_D);
@@ -110,20 +113,23 @@ public class P implements SharedPreferences.OnSharedPreferenceChangeListener{
 
     ///////////////////////////////////////////////////////////////////////////////////// connection
 
-    public static String host, pass, connectionType, sshHost, sshUser, sshPass;
+    public static String host, wsPath, pass, connectionType, sshHost, sshUser, sshPass;
     public static byte[] sshKey, sshKnownHosts;
     public static int port, sshPort;
-    public static SSLContext sslContext;
+    public static SSLSocketFactory sslSocketFactory;
     public static boolean reconnect;
 
     public static boolean pingEnabled;
     public static long pingIdleTime, pingTimeout;
     public static int lineIncrement;
 
+    public static String printableHost;
+
     public static void loadConnectionPreferences() {
         host = p.getString(PREF_HOST, PREF_HOST_D);
         pass = p.getString(PREF_PASSWORD, PREF_PASSWORD_D);
         port = Integer.parseInt(p.getString(PREF_PORT, PREF_PORT_D));
+        wsPath = p.getString(PREF_WS_PATH, PREF_WS_PATH_D);
 
         connectionType = p.getString(PREF_CONNECTION_TYPE, PREF_CONNECTION_TYPE_D);
         sshHost = p.getString(PREF_SSH_HOST, PREF_SSH_HOST_D);
@@ -142,20 +148,21 @@ public class P implements SharedPreferences.OnSharedPreferenceChangeListener{
         pingTimeout = Integer.parseInt(p.getString(PREF_PING_TIMEOUT, PREF_PING_TIMEOUT_D)) * 1000;
 
         if (Utils.isAnyOf(connectionType, PREF_TYPE_SSL, PREF_TYPE_WEBSOCKET_SSL)) {
-            sslContext = SSLHandler.getInstance(context).getSSLContext();
-            if (sslContext == null) throw new RuntimeException("could not init sslContext");
+            sslSocketFactory = SSLHandler.getInstance(context).getSSLSocketFactory();
         } else {
-            sslContext = null;
+            sslSocketFactory = null;
         }
+
+        printableHost = connectionType.equals(PREF_TYPE_SSH) ? sshHost + "/" + host : host;
     }
 
     public static @Nullable String validateConnectionPreferences() {
-        if (TextUtils.isEmpty(host)) return "Relay host is not set";
-        if (TextUtils.isEmpty(pass)) return "Relay password is not set";
+        if (TextUtils.isEmpty(host)) return context.getString(R.string.pref_error_relay_host_not_set);
+        if (TextUtils.isEmpty(pass)) return context.getString(R.string.pref_error_relay_password_not_set);
         if (connectionType.equals(PREF_TYPE_SSH)) {
-            if (TextUtils.isEmpty(sshHost)) return "SSH host is not set";
-            if (Utils.isEmpty(sshKey) && TextUtils.isEmpty(sshPass)) return "Neither SSH key nor password is set";
-            if (Utils.isEmpty(sshKnownHosts)) return "SSH known hosts are not set";
+            if (TextUtils.isEmpty(sshHost)) return context.getString(R.string.pref_error_ssh_host_not_set);
+            if (Utils.isEmpty(sshKey) && TextUtils.isEmpty(sshPass)) return context.getString(R.string.pref_error_no_ssh_key);
+            if (Utils.isEmpty(sshKnownHosts)) return context.getString(R.string.pref_error_no_ssh_known_hosts);
         }
         return null;
     }
@@ -172,6 +179,7 @@ public class P implements SharedPreferences.OnSharedPreferenceChangeListener{
             case PREF_SORT_BUFFERS: sortBuffers = p.getBoolean(key, PREF_SORT_BUFFERS_D); break;
             case PREF_SHOW_BUFFER_TITLES: showTitle = p.getBoolean(key, PREF_SHOW_BUFFER_TITLES_D); break;
             case PREF_FILTER_NONHUMAN_BUFFERS: filterBuffers = p.getBoolean(key, PREF_FILTER_NONHUMAN_BUFFERS_D); break;
+            case PREF_AUTO_HIDE_ACTIONBAR: autoHideActionbar = p.getBoolean(key, PREF_AUTO_HIDE_ACTIONBAR_D); break;
 
             // buffer-wide preferences
             case PREF_FILTER_LINES: filterLines = p.getBoolean(key, PREF_FILTER_LINES_D); break;

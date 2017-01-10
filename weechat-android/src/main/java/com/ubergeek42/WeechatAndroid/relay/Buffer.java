@@ -89,6 +89,10 @@ public class Buffer {
         if (DEBUG_BUFFER) logger.debug("new Buffer(..., {}, {}, ...) isOpen? {}", number, fullName, isOpen);
     }
 
+    public String hexPointer() {
+        return String.format("0x%x", pointer);
+    }
+
     ////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////////////////////////// LINES
@@ -139,11 +143,11 @@ public class Buffer {
         if (this.isOpen == open) return;
         this.isOpen = open;
         if (open) {
-            BufferList.syncBuffer(fullName);
+            BufferList.syncBuffer(this);
             for (Line line : lines) line.processMessageIfNeeded();
         }
         else {
-            BufferList.desyncBuffer(fullName);
+            BufferList.desyncBuffer(this);
             for (Line line : lines) line.eraseProcessedMessage();
             if (P.optimizeTraffic) {
                 // if traffic is optimized, the next time we open the buffer, it might have been updated
@@ -411,9 +415,9 @@ public class Buffer {
     //////////////////////////////////////////////////////////////////////////////////////////////// called by event handlers
     ////////////////////////////////////////////////////////////////////////////////////////////////
 
-    synchronized public void addNick(long pointer, String prefix, String name) {
-        if (DEBUG_NICK) logger.debug("{} addNick({}, {}, {})", shortName, pointer, prefix, name);
-        nicks.add(new Nick(pointer, prefix, name));
+    synchronized public void addNick(long pointer, String prefix, String name, boolean away) {
+        if (DEBUG_NICK) logger.debug("{} addNick({}, {}, {}, {})", shortName, pointer, prefix, name, away);
+        nicks.add(new Nick(pointer, prefix, name, away));
         notifyNicklistChanged();
     }
 
@@ -428,12 +432,13 @@ public class Buffer {
         notifyNicklistChanged();
     }
 
-    synchronized public void updateNick(long pointer, String prefix, String name) {
-        if (DEBUG_NICK) logger.debug("{} updateNick({}, {}, {})", shortName, pointer, prefix, name);
+    synchronized public void updateNick(long pointer, String prefix, String name, boolean away) {
+        if (DEBUG_NICK) logger.debug("{} updateNick({}, {}, {}, {})", shortName, pointer, prefix, name, away);
         for (Nick nick: nicks) {
             if (nick.pointer == pointer) {
                 nick.prefix = prefix;
                 nick.name = name;
+                nick.away = away;
                 break;
             }
         }
